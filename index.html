@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8" />
+  <title>Motor Oyunu Demo</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <style>
+    body { margin:0; overflow:hidden; background:black; font-family:Arial; }
+    #ui {
+      position:fixed; top:10px; left:10px; z-index:10;
+      background:rgba(0,0,0,0.6); color:white;
+      padding:10px; border-radius:10px;
+    }
+    button { margin:4px; padding:6px 10px; border-radius:6px; border:none; }
+  </style>
+</head>
+<body>
+
+<div id="ui">
+  <b>Motor Seç</b><br>
+  <button onclick="selectBike(0)">Hızlı</button>
+  <button onclick="selectBike(1)">Dengeli</button>
+  <button onclick="selectBike(2)">Güçlü</button><br><br>
+  <button onclick="toggleCamera()">🎥 Kamera</button>
+  <button onclick="toggleDay()">🌙☀️</button>
+  <button onclick="paused=!paused">⏸️</button>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+<script>
+let scene = new THREE.Scene();
+let cameraFP = new THREE.PerspectiveCamera(75, innerWidth/innerHeight, 0.1, 1000);
+let cameraBack = new THREE.PerspectiveCamera(75, innerWidth/innerHeight, 0.1, 1000);
+let camera = cameraFP;
+
+let renderer = new THREE.WebGLRenderer({antialias:true});
+renderer.setSize(innerWidth, innerHeight);
+document.body.appendChild(renderer.domElement);
+
+let light = new THREE.DirectionalLight(0xffffff, 1);
+light.position.set(5,10,5);
+scene.add(light);
+let ambient = new THREE.AmbientLight(0xffffff, 0.5);
+scene.add(ambient);
+
+let road = new THREE.Mesh(
+  new THREE.PlaneGeometry(2000, 20),
+  new THREE.MeshStandardMaterial({color:0x333333})
+);
+road.rotation.x = -Math.PI/2;
+scene.add(road);
+
+// MOTOR
+let bike = new THREE.Group();
+let body = new THREE.Mesh(
+  new THREE.BoxGeometry(1,0.6,2),
+  new THREE.MeshStandardMaterial({color:0xff0000})
+);
+body.position.y = 0.6;
+bike.add(body);
+bike.position.y = 0.2;
+scene.add(bike);
+
+// TRAFİK
+let traffic=[];
+function spawnCar(){
+  let car = new THREE.Mesh(
+    new THREE.BoxGeometry(1.5,1,3),
+    new THREE.MeshStandardMaterial({color:0x00ffff})
+  );
+  car.position.set((Math.random()-0.5)*6,0.5,bike.position.z-60);
+  scene.add(car);
+  traffic.push(car);
+}
+setInterval(spawnCar,2000);
+
+// KONTROL
+let accelerating=false, left=false, right=false;
+window.addEventListener("mousedown",()=>accelerating=true);
+window.addEventListener("mouseup",()=>accelerating=false);
+window.addEventListener("touchstart",e=>{
+  accelerating=true;
+  if(e.touches[0].clientX < innerWidth/2) left=true;
+  else right=true;
+});
+window.addEventListener("touchend",()=>{
+  accelerating=false; left=false; right=false;
+});
+
+// AYARLAR
+let bikes=[{s:0.25},{s:0.18},{s:0.14}];
+let current=bikes[0];
+function selectBike(i){ current=bikes[i]; }
+function toggleCamera(){ camera = camera===cameraFP?cameraBack:cameraFP; }
+
+let night=false;
+function toggleDay(){
+  night=!night;
+  scene.background=new THREE.Color(night?0x020617:0x87ceeb);
+  light.intensity=night?0.3:1;
+  ambient.intensity=night?0.2:0.5;
+}
+
+let paused=false;
+
+// OYUN DÖNGÜSÜ
+function animate(){
+  requestAnimationFrame(animate);
+  if(paused) return;
+
+  if(accelerating) bike.position.z -= current.s;
+  if(left) bike.position.x -= 0.08;
+  if(right) bike.position.x += 0.08;
+  bike.position.x=Math.max(-4,Math.min(4,bike.position.x));
+
+  cameraFP.position.set(bike.position.x,1.1,bike.position.z+0.2);
+  cameraFP.lookAt(bike.position.x,1,bike.position.z-5);
+  cameraBack.position.set(bike.position.x,3,bike.position.z+6);
+  cameraBack.lookAt(bike.position);
+
+  traffic.forEach((c,i)=>{
+    c.position.z += current.s;
+    if(c.position.distanceTo(bike.position)<1.5){
+      alert("💥 Çarpıştın!");
+      location.reload();
+    }
+  });
+
+  renderer.render(scene,camera);
+}
+animate();
+
+onresize=()=>{
+  renderer.setSize(innerWidth,innerHeight);
+  cameraFP.aspect=cameraBack.aspect=innerWidth/innerHeight;
+  cameraFP.updateProjectionMatrix();
+  cameraBack.updateProjectionMatrix();
+}
+</script>
+
+</body>
+</html>
